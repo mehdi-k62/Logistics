@@ -12,7 +12,8 @@ public enum ReplanningState
     OldCapacityReleasePending = 6,
     Completed = 7,
     RetryPending = 20,
-    ManualReview = 30
+    ManualReview = 30,
+    CapacityUnavailable=31
 }
 
 public sealed class ReplanningProcess : AggregateRoot<Guid>
@@ -53,11 +54,26 @@ public sealed class ReplanningProcess : AggregateRoot<Guid>
         Transition(ReplanningState.EligibilityChecked);
     }
 
+    
+
+    public void RetryUnavailabeCapacity()
+    {
+        EnsureState(ReplanningState.CapacityUnavailable);
+        Transition(ReplanningState.EligibilityChecked);
+    }
+
     public void SelectAlternative(string voyageId)
     {
         EnsureState(ReplanningState.EligibilityChecked);
         TargetVoyageId = voyageId;
         Transition(ReplanningState.AlternativeSelected);
+    }
+
+   public void MarkCapacityUnavailabe()
+    {
+        EnsureState(ReplanningState.AlternativeSelected);
+        TargetVoyageId = null;
+        Transition(ReplanningState.CapacityUnavailable);
     }
 
     public void MarkCapacityReserved()
@@ -135,6 +151,7 @@ public sealed class ReplanningProcess : AggregateRoot<Guid>
         NextAttemptAt = null;
         Touch();
     }
+
 
     private void EnsureState(ReplanningState expected)
     {

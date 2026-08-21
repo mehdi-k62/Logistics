@@ -20,14 +20,14 @@ public sealed record BookingSnapshot(string BookingId, int RequestedTeu, string?
 
 public interface IVoyageGateway
 {
-    Task<IReadOnlyList<VoyageCandidate>> FindAlternativesAsync(string bookingId, string? preferredVoyageId, CancellationToken ct);
+    Task<IReadOnlyList<VoyageCandidate>> FindAlternativesAsync(string bookingId,int requestedTeu, string? preferredVoyageId, CancellationToken ct);
     Task<ReservationResult> ReserveAsync(string voyageId, string bookingId, Guid processId, int units, CancellationToken ct);
     Task ReleaseAsync(Guid reservationId, CancellationToken ct);
     Task ReleaseForBookingVoyageAsync(string bookingId, string voyageId, CancellationToken ct);
 }
 
 public sealed record VoyageCandidate(string VoyageId, int AvailableTeu);
-public sealed record ReservationResult(Guid ReservationId, bool Created, bool AlreadyExists);
+public sealed record ReservationResult(Guid ReservationId, bool Created, bool AlreadyExists,bool capacityUnavailable=false);
 
 public interface IReplanningClock { DateTimeOffset UtcNow { get; } }
 public interface IRetryPolicy
@@ -51,3 +51,5 @@ public sealed class SimulatedCrashException : Exception
     public SimulatedCrashException(Guid processId)
         : base($"Simulated worker crash after capacity reservation for process {processId}.") { }
 }
+
+public sealed class CapacityUnavailableException(string voyageId) : Exception($"Capacity unavailable for voyage {voyageId}.");

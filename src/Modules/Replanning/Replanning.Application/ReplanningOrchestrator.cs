@@ -1,5 +1,5 @@
-using Replanning.Domain;
 using Microsoft.Extensions.Logging;
+using Replanning.Domain;
 
 namespace Replanning.Application;
 
@@ -32,6 +32,9 @@ public sealed class ReplanningOrchestrator(
                     break;
                 case ReplanningState.AlternativeSelected:
                     await Reserve(process, ct);
+                    break;
+                case ReplanningState.CapacityUnavailable:
+                    await RetryUnavailableCapacity(process, ct);
                     break;
                 case ReplanningState.CapacityReserved:
                     await Reassign(process, ct);
@@ -82,11 +85,21 @@ public sealed class ReplanningOrchestrator(
         await processes.SaveAsync(process, ct);
     }
 
+    private async Task RetryUnavailableCapacity(ReplanningProcess process, CancellationToken ct)
+    {
+        var booking = await bookings.GetAsync(process.BookingId, ct)
+            ?? throw new InvalidOperationException("Booking not found.");
+        if (!booking.IsActive)
+            throw new InvalidOperationException("Booking is not eligible for replanning.");
+        process.RetryUnavailabeCapacity();
+        await processes.SaveAsync(process, ct);
+    }
+
     private async Task SelectAlternative(ReplanningProcess process, CancellationToken ct)
     {
         var booking = await bookings.GetAsync(process.BookingId, ct)
             ?? throw new InvalidOperationException("Booking not found.");
-        var candidates = await voyages.FindAlternativesAsync(process.BookingId, process.CurrentVoyageId, ct);
+        var candidates = await voyages.FindAlternativesAsync(process.BookingId,booking.RequestedTeu, process.CurrentVoyageId, ct);
         var selected = !string.IsNullOrWhiteSpace(process.RequestedAlternativeVoyageId)
             ? candidates.FirstOrDefault(x => x.VoyageId == process.RequestedAlternativeVoyageId)
             : candidates.OrderByDescending(x => x.AvailableTeu).FirstOrDefault();
@@ -104,8 +117,17 @@ public sealed class ReplanningOrchestrator(
             throw new InvalidOperationException("Target voyage is missing.");
 
         var result = await voyages.ReserveAsync(process.TargetVoyageId!, booking.BookingId, process.Id, booking.RequestedTeu, ct);
+        //if capacity unavailabe due to race condition
+        if (result.capacityUnavailable)
+        {
+            process.MarkCapacityUnavailabe();
+            await processes.SaveAsync(process,ct);
+            return;
+        }
+
         if (!result.Created && !result.AlreadyExists)
             throw new TransientReplanningException("Capacity reservation could not be confirmed.");
+
 
         // Failure injection deliberately occurs BEFORE the process state is advanced.
         // If the process dies here, the durable state remains AlternativeSelected while

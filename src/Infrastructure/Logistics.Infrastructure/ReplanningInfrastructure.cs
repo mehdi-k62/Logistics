@@ -60,13 +60,15 @@ public sealed class BookingGateway(LogisticsDbContext db) : IBookingGateway
 
 public sealed class VoyageGateway(LogisticsDbContext db) : IVoyageGateway
 {
-    public async Task<IReadOnlyList<VoyageCandidate>> FindAlternativesAsync(string bookingId, string? preferredVoyageId, CancellationToken ct)
+    public async Task<IReadOnlyList<VoyageCandidate>> FindAlternativesAsync(string bookingId,int requestedTeu, string? preferredVoyageId, CancellationToken ct)
     {
-        var query = db.Voyages.Where(x => x.State == VoyageState.Available && x.ReservedCapacity < x.TotalCapacity);
+        var query = db.Voyages.Where(x =>
+                                         x.State == VoyageState.Available &&
+                                         x.TotalCapacity - x.ReservedCapacity >= requestedTeu);
         if (!string.IsNullOrWhiteSpace(preferredVoyageId))
             query = query.Where(x => x.Id != preferredVoyageId);
         return await query
-            .OrderByDescending(x => x.TotalCapacity - x.ReservedCapacity)
+            .OrderBy(x => x.TotalCapacity - x.ReservedCapacity)
             .Select(x => new VoyageCandidate(x.Id, x.TotalCapacity - x.ReservedCapacity))
             .Take(20)
             .ToListAsync(ct);
@@ -87,7 +89,7 @@ public sealed class VoyageGateway(LogisticsDbContext db) : IVoyageGateway
               AND ReservedCapacity + {units} <= TotalCapacity;
             """, ct);
         if (affected != 1)
-            throw new CapacityUnavailableException(voyageId);
+            return new ReservationResult(Guid.Empty,false,false, capacityUnavailable:true);
 
         var reservation = new CapacityReservation(Guid.NewGuid(), bookingId, voyageId, processId, units);
         db.CapacityReservations.Add(reservation);
@@ -128,7 +130,7 @@ public sealed class VoyageGateway(LogisticsDbContext db) : IVoyageGateway
     }
 }
 
-public sealed class CapacityUnavailableException(string voyageId) : Exception($"Capacity unavailable for voyage {voyageId}.");
+
 
 public sealed class SystemClock : IReplanningClock
 {
