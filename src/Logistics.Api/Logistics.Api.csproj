@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+	<PropertyGroup>
+		<RootNamespace>Logistics.Api</RootNamespace>
+	</PropertyGroup>
+	<ItemGroup>
+		<PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.11" />
+		<PackageReference Include="Swashbuckle.AspNetCore" Version="10.2.3" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.11">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+	</ItemGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\Infrastructure\Logistics.Infrastructure\Logistics.Infrastructure.csproj" />
+		<ProjectReference Include="..\Modules\Booking\Booking.Domain\Booking.Domain.csproj" />
+		<ProjectReference Include="..\Modules\Voyage\Voyage.Domain\Voyage.Domain.csproj" />
+		<ProjectReference Include="..\Modules\Replanning\Replanning.Domain\Replanning.Domain.csproj" />
+		<ProjectReference Include="..\Modules\Replanning\Replanning.Application\Replanning.Application.csproj" />
+	</ItemGroup>
+</Project>

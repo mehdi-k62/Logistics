@@ -1,0 +1,22 @@
+sequenceDiagram
+  participant API
+  participant R as Replanning
+  participant DB
+  participant V as Voyage/Capacity
+  participant O as Outbox
+  participant Broker
+  participant C as Consumer
+  API->>R: Start / receive disruption
+  R->>V: Reserve new capacity
+  V->>DB: Atomic update + reservation COMMIT
+  Note over R: CRASH before process-state update
+  R--xAPI: process dies
+  API->>R: Worker restarts
+  R->>DB: load durable process
+  R->>V: idempotent reserve check
+  R->>DB: reassign + release + complete
+  R->>O: store BookingReplanned atomically
+  O->>Broker: publish
+  Note over O,Broker: crash here may cause duplicate publication
+  Broker->>C: duplicate delivery possible
+  C->>DB: Inbox uniqueness

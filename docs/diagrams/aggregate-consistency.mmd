@@ -1,0 +1,13 @@
+flowchart TB
+  B[Booking Aggregate / boundary\nCurrent active assignment]
+  V[Voyage + Capacity consistency boundary\nReservedCapacity invariant]
+  R[Replanning Process Manager\nDurable workflow state]
+  DB[(SQL Server)]
+  R --> B
+  R --> V
+  B --> DB
+  V --> DB
+  R --> DB
+  DB --- C1[Unique active Booking assignment]
+  DB --- C2[Atomic capacity reservation]
+  DB --- C3[Unique Process + Voyage reservation]

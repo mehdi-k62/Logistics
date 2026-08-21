@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><RootNamespace>Logistics.Infrastructure</RootNamespace></PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.11" />
+	  <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.11">
+		  <PrivateAssets>all</PrivateAssets>
+		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+	  </PackageReference>
+	  <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.11">
+	    <PrivateAssets>all</PrivateAssets>
+	    <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+	  </PackageReference>
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.11" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Logistics.SharedKernel\Logistics.SharedKernel.csproj" />
+    <ProjectReference Include="..\..\Modules\Booking\Booking.Domain\Booking.Domain.csproj" />
+    <ProjectReference Include="..\..\Modules\Voyage\Voyage.Domain\Voyage.Domain.csproj" />
+    <ProjectReference Include="..\..\Modules\Replanning\Replanning.Domain\Replanning.Domain.csproj" />
+    <ProjectReference Include="..\..\Modules\Replanning\Replanning.Application\Replanning.Application.csproj" />
+  </ItemGroup>
+</Project>

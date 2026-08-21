@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><RootNamespace>Voyage.Domain</RootNamespace></PropertyGroup>
+  <ItemGroup><ProjectReference Include="..\..\..\Logistics.SharedKernel\Logistics.SharedKernel.csproj" /></ItemGroup>
+</Project>
