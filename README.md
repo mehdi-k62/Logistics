@@ -1,10 +1,10 @@
-# Logistics Challenge — .NET 10 Modular Monolith
+# Logistics Challenge — .NET 8 Modular Monolith
 
 This repository is a deliberately focused implementation skeleton for the supplied logistics/replanning challenge.
 
 ## Design
 
-- .NET 10
+- .NET 8
 - Modular Monolith
 - DDD tactical modeling
 - Booking, Voyage and Replanning modules
@@ -77,7 +77,7 @@ because that pattern is race-prone.
 
 Prerequisites:
 
-- .NET 10 SDK
+- .NET 8 SDK
 - Docker
 
 Start SQL Server:
@@ -135,6 +135,7 @@ Example booking creation:
 
 `VoyageId` and `BookingId` are business identifiers stored as `VARCHAR(10)`. `ProcessId` remains a GUID because it identifies the durable replanning process rather than a business entity.
 
+
 ### Start
 
 ```http
@@ -172,21 +173,21 @@ The repository also contains the required architecture package under `docs/`: ar
 
 ### Challenge coverage matrix
 
-| Requirement                    | Evidence                                 |
-| ------------------------------ | ---------------------------------------- |
-| Atomic capacity correctness    | `database/schema.sql`, `ReserveCapacity` |
-| Genuine concurrent reservation | `SqlServerConcurrencyTests`              |
-| Durable crash recovery         | `CrashRecoveryTests` + failure injector  |
-| Duplicate disruption           | `DisruptionConsumerTests` + Inbox        |
-| Outbox failure / at-least-once | `OutboxFailureTests`                     |
-| Architecture boundaries        | `Logistics.ArchitectureTests`            |
-| Database migration baseline    | `database/migrations/001_initial.sql`    |
-| Architecture docs              | `docs/architecture.md`                   |
-| Event Storming                 | `docs/event-storming-summary.md`         |
-| Three ADRs                     | `docs/adr/`                              |
-| Required diagrams              | `docs/diagrams/`                         |
-| Scale note                     | `docs/scale-and-operability.md`          |
-| AI report                      | `docs/ai-assisted-engineering.md`        |
+| Requirement | Evidence |
+|---|---|
+| Atomic capacity correctness | `database/schema.sql`, `ReserveCapacity` |
+| Genuine concurrent reservation | `SqlServerConcurrencyTests` |
+| Durable crash recovery | `CrashRecoveryTests` + failure injector |
+| Duplicate disruption | `DisruptionConsumerTests` + Inbox |
+| Outbox failure / at-least-once | `OutboxFailureTests` |
+| Architecture boundaries | `Logistics.ArchitectureTests` |
+| Database migration baseline | `database/migrations/001_initial.sql` |
+| Architecture docs | `docs/architecture.md` |
+| Event Storming | `docs/event-storming-summary.md` |
+| Three ADRs | `docs/adr/` |
+| Required diagrams | `docs/diagrams/` |
+| Scale note | `docs/scale-and-operability.md` |
+| AI report | `docs/ai-assisted-engineering.md` |
 
 ## Test commands
 
@@ -237,6 +238,7 @@ Business state and publication intent must commit atomically. Broker availabilit
 
 Messaging is at-least-once. Duplicate delivery must not create a second business effect.
 
+
 ## Identifier convention
 
 Business identifiers for Voyages and Bookings are human-readable string keys stored as `VARCHAR(10)`:
@@ -255,3 +257,41 @@ GET  /api/replanning/{processId}
 ```
 
 Example business identifiers: `V100` and `B001`.
+
+### Message flow
+
+`VoyageDisrupted` is written to the transactional Outbox, the Outbox publisher dispatches it to the registered `VoyageDisruptedConsumer`, the consumer writes Inbox + durable replanning processes transactionally, and the ReplanningWorker advances those processes.
+
+Replanning captures the booking's current voyage at process creation and selects an available alternative different from that current/disrupted voyage.
+
+
+### Runtime message flow
+
+The runnable candidate has a concrete consumer connection; it is not only the runnable in-process transport adapter:
+
+```text
+POST /api/voyages/{voyageId}/disruptions
+        |
+        +--> Voyage.Disrupt() + Outbox row (same DB transaction)
+                                |
+                                v
+                       OutboxPublisherWorker
+                                |
+                                v
+                    InProcessMessagePublisher
+                                |
+                                v
+                    VoyageDisruptedConsumer
+                         |              |
+                         |              +--> ProcessedMessages (Inbox)
+                         v
+                  ReplanningProcesses
+                         |
+                         v
+                  ReplanningWorker
+                         |
+                         v
+               reserve -> reassign -> release
+```
+
+`ReplanningProcess.CurrentVoyageId` is captured when the process is created. Alternative selection explicitly excludes that current/disrupted voyage. The API also supports `RequestedAlternativeVoyageId` when a specific replacement is requested.

@@ -269,7 +269,7 @@ public sealed class LogisticsDbContext(DbContextOptions<LogisticsDbContext> opti
 
             e.Property(x => x.TargetVoyageId)
                 .HasColumnType("varchar(10)");
-
+            e.Property(x=>x.RequestedAlternativeVoyageId).HasColumnType("varchar(10)");
             e.Property(x => x.RetryCount)
                 .HasColumnType("int")
                 .IsRequired()

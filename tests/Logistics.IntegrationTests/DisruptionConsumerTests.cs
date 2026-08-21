@@ -2,9 +2,8 @@ using Logistics.Infrastructure;
 using Logistics.Infrastructure.Consumers;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Replanning.Application;
 using Replanning.Domain;
-using System.Runtime.Intrinsics.X86;
-using Voyage.Domain;
 using Xunit;
 
 namespace Logistics.IntegrationTests;
@@ -158,6 +157,73 @@ public sealed class DisruptionConsumerTests
             Assert.Equal(ReplanningState.Started, process.State);
         }
     }
+    [Fact]
+    public async Task Disruption_creates_process_and_replanning_moves_booking_to_a_different_voyage()
+    {
+        var options = new DbContextOptionsBuilder<LogisticsDbContext>()
+            .UseSqlServer(ConnectionString).Options;
+
+        var bookingId = $"B{Guid.NewGuid():N}"[..10];
+        var oldVoyageId = $"V{Guid.NewGuid():N}"[..10];
+        var newVoyageId = $"V{Guid.NewGuid():N}"[..10];
+        var disruptionId = Guid.NewGuid();
+
+        await using (var db = new LogisticsDbContext(options))
+        {
+            await db.Database.EnsureCreatedAsync();
+            var oldVoyage = new Voyage.Domain.Voyage(oldVoyageId, 10);
+            oldVoyage.Disrupt();
+            var newVoyage = new Voyage.Domain.Voyage(newVoyageId, 20);
+            var booking = new Booking.Domain.Booking(bookingId, 1);
+            booking.Reassign(oldVoyageId, DateTimeOffset.UtcNow);
+            db.Voyages.AddRange(oldVoyage, newVoyage);
+            db.Bookings.Add(booking);
+            await db.SaveChangesAsync();
+        }
+
+        Guid processId;
+        await using (var db = new LogisticsDbContext(options))
+        {
+            var consumer = new VoyageDisruptedConsumer(db);
+            var created = await consumer.HandleAsync(
+                new VoyageDisruptedMessage(disruptionId, oldVoyageId, DateTimeOffset.UtcNow, 1),
+                CancellationToken.None);
+            Assert.Equal(1, created);
+            processId = await db.ReplanningProcesses
+                .Where(x => x.DisruptionId == disruptionId && x.BookingId == bookingId)
+                .Select(x => x.Id)
+                .SingleAsync();
+        }
+
+        await using (var db = new LogisticsDbContext(options))
+        {
+            var orchestrator = new Replanning.Application.ReplanningOrchestrator(
+                new ReplanningProcessRepository(db),
+                new BookingGateway(db),
+                new VoyageGateway(db),
+                new SystemClock(),
+                new ExponentialRetryPolicy(),
+                new NoopWorkflowFailureInjector(),
+                Microsoft.Extensions.Logging.Abstractions.NullLogger<Replanning.Application.ReplanningOrchestrator>.Instance);
+
+            for (var i = 0; i < 8; i++)
+            {
+                await orchestrator.ExecuteAsync(processId, CancellationToken.None);
+                var state = await db.ReplanningProcesses.Where(x => x.Id == processId).Select(x => x.State).SingleAsync();
+                if (state == ReplanningState.Completed) break;
+            }
+        }
+
+        await using (var verify = new LogisticsDbContext(options))
+        {
+            var booking = await verify.Bookings.Include(x => x.Assignments).SingleAsync(x => x.Id == bookingId);
+            var process = await verify.ReplanningProcesses.SingleAsync(x => x.Id == processId);
+            Assert.Equal(ReplanningState.Completed, process.State);
+            Assert.NotEqual(oldVoyageId, booking.ActiveAssignment!.VoyageId);
+            Assert.Equal(newVoyageId, booking.ActiveAssignment.VoyageId);
+        }
+    }
+
 
     private static async Task ExecuteAsync(SqlConnection connection, string sql)
     {

@@ -42,9 +42,16 @@ public sealed class VoyageDisruptedConsumer(LogisticsDbContext db)
         // still affects a booking. This makes late/out-of-order messages harmless.
         var affectedBookings = await db.Bookings
             .Where(b => b.State == BookingState.Active)
-            .Where(b => b.Assignments.Any(a =>
-                a.VoyageId == message.VoyageId && a.State == AssignmentState.Active))
-            .Select(b => new { b.Id })
+            .Select(b => new
+            {
+                b.Id,
+                CurrentVoyageId = b.Assignments
+                    .Where(a => a.State == AssignmentState.Active)
+                    .OrderByDescending(a => a.Sequence)
+                    .Select(a => a.VoyageId)
+                    .FirstOrDefault()
+            })
+            .Where(x => x.CurrentVoyageId == message.VoyageId)
             .ToListAsync(ct);
 
         var created = 0;
@@ -60,7 +67,8 @@ public sealed class VoyageDisruptedConsumer(LogisticsDbContext db)
             db.ReplanningProcesses.Add(new ReplanningProcess(
                 Guid.NewGuid(),
                 booking.Id,
-                message.MessageId));
+                message.MessageId,
+                booking.CurrentVoyageId));
             created++;
         }
 

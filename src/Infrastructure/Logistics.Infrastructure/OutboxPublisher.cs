@@ -1,7 +1,9 @@
+using Logistics.Infrastructure.Consumers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using System.Text.Json;
 
 namespace Logistics.Infrastructure;
 
@@ -10,13 +12,27 @@ public interface IMessagePublisher
     Task PublishAsync(OutboxMessage message, CancellationToken ct);
 }
 
-public sealed class LoggingMessagePublisher(ILogger<LoggingMessagePublisher> logger) : IMessagePublisher
+public sealed class InProcessMessagePublisher(
+    VoyageDisruptedConsumer voyageDisruptedConsumer,
+    ILogger<InProcessMessagePublisher> logger) : IMessagePublisher
 {
-    public Task PublishAsync(OutboxMessage message, CancellationToken ct)
+    public async Task PublishAsync(OutboxMessage message, CancellationToken ct)
     {
-        logger.LogInformation("Publishing outbox message {MessageId} type {Type} aggregate {AggregateId}: {Payload}",
-            message.Id, message.MessageType, message.AggregateId, message.Payload);
-        return Task.CompletedTask;
+        logger.LogInformation("Publishing outbox message {MessageId} type {Type} aggregate {AggregateId}",
+            message.Id, message.MessageType, message.AggregateId);
+
+        switch (message.MessageType)
+        {
+            case "VoyageDisrupted":
+            {
+                var payload = JsonSerializer.Deserialize<VoyageDisruptedMessage>(message.Payload)
+                    ?? throw new InvalidOperationException($"Invalid payload for {message.MessageType}.");
+                await voyageDisruptedConsumer.HandleAsync(payload, ct);
+                return;
+            }
+            default:
+                throw new InvalidOperationException($"No consumer registered for message type '{message.MessageType}'.");
+        }
     }
 }
 

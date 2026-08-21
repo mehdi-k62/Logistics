@@ -17,11 +17,14 @@ public enum ReplanningState
 
 public sealed class ReplanningProcess : AggregateRoot<Guid>
 {
+  
 
-    public ReplanningProcess(Guid id, string bookingId, Guid disruptionId) : base(id)
+    public ReplanningProcess(Guid id, string bookingId, Guid disruptionId, string? currentVoyageId = null, string? requestedAlternativeVoyageId = null) : base(id)
     {
         BookingId = bookingId;
         DisruptionId = disruptionId;
+        CurrentVoyageId = currentVoyageId;
+        RequestedAlternativeVoyageId = requestedAlternativeVoyageId;
         State = ReplanningState.Started;
         CreatedAt = DateTimeOffset.UtcNow;
         UpdatedAt = CreatedAt;
@@ -33,6 +36,7 @@ public sealed class ReplanningProcess : AggregateRoot<Guid>
     public string? CurrentVoyageId { get; private set; }
     public string? PreviousVoyageId { get; private set; }
     public string? TargetVoyageId { get; private set; }
+    public string? RequestedAlternativeVoyageId { get; private set; }
     public int RetryCount { get; private set; }
     public DateTimeOffset? NextAttemptAt { get; private set; }
     public string? LastError { get; private set; }

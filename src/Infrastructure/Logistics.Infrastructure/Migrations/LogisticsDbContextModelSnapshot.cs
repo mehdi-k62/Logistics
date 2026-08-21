@@ -204,6 +204,9 @@ namespace Logistics.Infrastructure.Migrations
                     b.Property<string>("PreviousVoyageId")
                         .HasColumnType("varchar(10)");
 
+                    b.Property<string>("RequestedAlternativeVoyageId")
+                        .HasColumnType("varchar(10)");
+
                     b.Property<int>("RetryCount")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int")

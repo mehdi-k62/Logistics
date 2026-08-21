@@ -1,16 +1,16 @@
+using Logistics.Infrastructure;
+using Microsoft.EntityFrameworkCore;
+using Replanning.Domain;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using Logistics.Infrastructure;
-using Microsoft.EntityFrameworkCore;
-using Replanning.Domain;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddDbContext<LogisticsDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("SqlServer"),
-    b=>b.MigrationsAssembly(typeof(LogisticsDbContext).GetTypeInfo().Assembly.GetName().Name)));
+    b => b.MigrationsAssembly(typeof(LogisticsDbContext).GetTypeInfo().Assembly.GetName().Name)));
 
 builder.Services.AddLogisticsInfrastructure();
 builder.Services.AddHostedService<ReplanningWorker>();
@@ -145,7 +145,20 @@ app.MapPost("/api/bookings/{bookingId}/replanning",
             new { processId = existing.ProcessId, state = existing.Status });
     }
 
-    var process = new ReplanningProcess(Guid.NewGuid(), bookingId, request.DisruptionId);
+    var booking = await db.Bookings
+        .Include(x => x.Assignments)
+        .SingleOrDefaultAsync(x => x.Id == bookingId);
+    if (booking is null)
+        return Results.NotFound(new { code = "BOOKING_NOT_FOUND", bookingId });
+    if (booking.State != Booking.Domain.BookingState.Active || booking.ActiveAssignment is null)
+        return Results.Conflict(new { code = "BOOKING_HAS_NO_ACTIVE_VOYAGE", bookingId });
+
+    var process = new ReplanningProcess(
+        Guid.NewGuid(),
+        bookingId,
+        request.DisruptionId,
+        booking.ActiveAssignment.VoyageId,
+        request.RequestedAlternativeVoyageId);
     db.ReplanningProcesses.Add(process);
     db.IdempotencyRecords.Add(IdempotencyRecord.Create(scope, key, hash, process.Id));
 
@@ -196,7 +209,9 @@ app.MapGet("/api/replanning/{processId:guid}",
         process.DisruptionId,
         state = process.State.ToString(),
         process.CurrentVoyageId,
+        process.PreviousVoyageId,
         process.TargetVoyageId,
+        process.RequestedAlternativeVoyageId,
         process.RetryCount,
         process.NextAttemptAt,
         process.LastError,

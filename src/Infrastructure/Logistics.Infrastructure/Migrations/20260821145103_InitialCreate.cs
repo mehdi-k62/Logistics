@@ -116,6 +116,7 @@ namespace Logistics.Infrastructure.Migrations
                     CurrentVoyageId = table.Column<string>(type: "varchar(10)", nullable: true),
                     PreviousVoyageId = table.Column<string>(type: "varchar(10)", nullable: true),
                     TargetVoyageId = table.Column<string>(type: "varchar(10)", nullable: true),
+                    RequestedAlternativeVoyageId = table.Column<string>(type: "varchar(10)", nullable: true),
                     RetryCount = table.Column<int>(type: "int", nullable: false, defaultValue: 0),
                     NextAttemptAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
                     LastError = table.Column<string>(type: "nvarchar(2000)", nullable: true),

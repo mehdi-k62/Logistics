@@ -1,6 +1,8 @@
 using Logistics.Infrastructure;
+using Logistics.Infrastructure.Consumers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Text.Json;
 using Xunit;
 
 namespace Logistics.IntegrationTests;
@@ -104,6 +106,48 @@ public sealed class OutboxFailureTests
             Deliveries++;
             if (Throw) throw new SimulatedCrashAfterDeliveryException();
             return Task.CompletedTask;
+        }
+    }
+
+
+
+
+    [Fact]
+    public async Task Outbox_published_VoyageDisrupted_is_delivered_to_registered_consumer()
+    {
+        var options = new DbContextOptionsBuilder<LogisticsDbContext>()
+            .UseSqlServer(ConnectionString).Options;
+        var bookingId = $"B{Guid.NewGuid():N}"[..10];
+        var voyageId = $"V{Guid.NewGuid():N}"[..10];
+        var messageId = Guid.NewGuid();
+
+        await using (var db = new LogisticsDbContext(options))
+        {
+            await db.Database.EnsureCreatedAsync();
+            var voyage = new Voyage.Domain.Voyage(voyageId, 10);
+            var booking = new Booking.Domain.Booking(bookingId, 1);
+            booking.Reassign(voyageId, DateTimeOffset.UtcNow);
+            db.Voyages.Add(voyage);
+            db.Bookings.Add(booking);
+            db.OutboxMessages.Add(OutboxMessage.Create(
+                "VoyageDisrupted", messageId,
+                JsonSerializer.Serialize(new VoyageDisruptedMessage(messageId, voyageId, DateTimeOffset.UtcNow, 1))));
+            await db.SaveChangesAsync();
+        }
+
+        await using (var db = new LogisticsDbContext(options))
+        {
+            var consumer = new VoyageDisruptedConsumer(db);
+            var publisher = new InProcessMessagePublisher(consumer, NullLogger<InProcessMessagePublisher>.Instance);
+            var dispatcher = new OutboxDispatcher(db, publisher, NullLogger<OutboxDispatcher>.Instance);
+            Assert.Equal(1, await dispatcher.DispatchOnceAsync(10, CancellationToken.None));
+        }
+
+        await using (var verify = new LogisticsDbContext(options))
+        {
+            Assert.Equal(1, await verify.ReplanningProcesses.CountAsync(x => x.DisruptionId == messageId && x.BookingId == bookingId));
+            Assert.Equal(1, await verify.ProcessedMessages.CountAsync(x => x.MessageId == messageId));
+            Assert.Equal(OutboxStatus.Published, (await verify.OutboxMessages.SingleAsync(x => x.Id == messageId)).Status);
         }
     }
 

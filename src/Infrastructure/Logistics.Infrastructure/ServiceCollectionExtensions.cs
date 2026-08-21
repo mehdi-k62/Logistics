@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Replanning.Application;
+using Logistics.Infrastructure.Consumers;
 
 namespace Logistics.Infrastructure;
 
@@ -14,7 +15,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IRetryPolicy, ExponentialRetryPolicy>();
         services.AddSingleton<IWorkflowFailureInjector, NoopWorkflowFailureInjector>();
         services.AddScoped<ReplanningOrchestrator>();
-        services.AddSingleton<IMessagePublisher, LoggingMessagePublisher>();
+        services.AddScoped<VoyageDisruptedConsumer>();
+        services.AddScoped<IMessagePublisher, InProcessMessagePublisher>();
         services.AddHostedService<OutboxPublisherWorker>();
         return services;
     }

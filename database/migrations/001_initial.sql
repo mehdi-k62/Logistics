@@ -44,6 +44,7 @@ CREATE TABLE dbo.ReplanningProcesses
     CurrentVoyageId VARCHAR(10) NULL,
     PreviousVoyageId VARCHAR(10) NULL,
     TargetVoyageId VARCHAR(10) NULL,
+    RequestedAlternativeVoyageId VARCHAR(10) NULL,
     RetryCount INT NOT NULL DEFAULT 0,
     NextAttemptAt DATETIMEOFFSET NULL,
     LastError NVARCHAR(2000) NULL,

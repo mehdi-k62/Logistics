@@ -64,7 +64,7 @@ public sealed class VoyageGateway(LogisticsDbContext db) : IVoyageGateway
     {
         var query = db.Voyages.Where(x => x.State == VoyageState.Available && x.ReservedCapacity < x.TotalCapacity);
         if (!string.IsNullOrWhiteSpace(preferredVoyageId))
-            query = query.Where(x => x.Id == preferredVoyageId || x.Id != preferredVoyageId);
+            query = query.Where(x => x.Id != preferredVoyageId);
         return await query
             .OrderByDescending(x => x.TotalCapacity - x.ReservedCapacity)
             .Select(x => new VoyageCandidate(x.Id, x.TotalCapacity - x.ReservedCapacity))

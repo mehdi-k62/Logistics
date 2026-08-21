@@ -86,8 +86,10 @@ public sealed class ReplanningOrchestrator(
     {
         var booking = await bookings.GetAsync(process.BookingId, ct)
             ?? throw new InvalidOperationException("Booking not found.");
-        var candidates = await voyages.FindAlternativesAsync(process.BookingId, process.TargetVoyageId, ct);
-        var selected = candidates.OrderByDescending(x => x.AvailableTeu).FirstOrDefault();
+        var candidates = await voyages.FindAlternativesAsync(process.BookingId, process.CurrentVoyageId, ct);
+        var selected = !string.IsNullOrWhiteSpace(process.RequestedAlternativeVoyageId)
+            ? candidates.FirstOrDefault(x => x.VoyageId == process.RequestedAlternativeVoyageId)
+            : candidates.OrderByDescending(x => x.AvailableTeu).FirstOrDefault();
         if (selected is null || selected.AvailableTeu < booking.RequestedTeu)
             throw new InvalidOperationException("No eligible alternative voyage with sufficient capacity.");
         process.SelectAlternative(selected.VoyageId);
@@ -121,7 +123,26 @@ public sealed class ReplanningOrchestrator(
             throw new InvalidOperationException("Target voyage is missing.");
         var booking = await bookings.GetAsync(process.BookingId, ct)
             ?? throw new InvalidOperationException("Booking not found.");
-        var oldVoyage = booking.ActiveVoyageId;
+        var oldVoyage = process.CurrentVoyageId;
+        if (oldVoyage is null)
+            throw new InvalidOperationException("Replanning process has no current voyage.");
+        if (string.Equals(oldVoyage, process.TargetVoyageId, StringComparison.Ordinal))
+            throw new InvalidOperationException("Target voyage must differ from disrupted/current voyage.");
+
+        // Recovery-safe reassignment: if the booking was already moved before the process
+        // state was persisted, do not perform a second assignment. Advance the process
+        // from the durable business state instead.
+        if (string.Equals(booking.ActiveVoyageId, process.TargetVoyageId, StringComparison.Ordinal))
+        {
+            process.SetPreviousVoyage(oldVoyage);
+            process.MarkBookingReassigned(process.TargetVoyageId!);
+            await processes.SaveAsync(process, ct);
+            return;
+        }
+
+        if (!string.Equals(booking.ActiveVoyageId, oldVoyage, StringComparison.Ordinal))
+            throw new TransientReplanningException($"Booking current voyage changed from {oldVoyage} to {booking.ActiveVoyageId} before reassignment.");
+
         await bookings.ReassignAsync(process.BookingId, process.TargetVoyageId!, clock.UtcNow, ct);
         process.SetPreviousVoyage(oldVoyage);
         process.MarkBookingReassigned(process.TargetVoyageId!);

@@ -45,7 +45,7 @@ HTTP commands use `Idempotency-Key` plus a payload hash and a unique `(Scope, Ke
 
 ## 9. Outbox / Inbox and delivery semantics
 
-Business state and the Outbox intent are committed together. Publication is explicitly **at-least-once**: a crash after broker publication and before the database `Published` update can result in duplicate delivery. Consumers therefore remain idempotent. The solution does not claim end-to-end exactly-once.
+Business state and the Outbox intent are committed together. Publication is explicitly **at-least-once**. In the runnable candidate, the Outbox publisher dispatches `VoyageDisrupted` through `InProcessMessagePublisher` to the registered `VoyageDisruptedConsumer`; this is a transport seam rather than a claim that an external RabbitMQ/Kafka cluster is bundled. A production transport adapter can replace it. A crash after broker publication and before the database `Published` update can result in duplicate delivery. Consumers therefore remain idempotent. The solution does not claim end-to-end exactly-once.
 
 ## 10. Event ordering
 

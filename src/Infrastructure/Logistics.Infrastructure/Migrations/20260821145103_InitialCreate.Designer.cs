@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Logistics.Infrastructure.Migrations
 {
     [DbContext(typeof(LogisticsDbContext))]
-    [Migration("20260821095421_InitialCreate")]
+    [Migration("20260821145103_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -205,6 +205,9 @@ namespace Logistics.Infrastructure.Migrations
                         .HasColumnType("datetimeoffset");
 
                     b.Property<string>("PreviousVoyageId")
+                        .HasColumnType("varchar(10)");
+
+                    b.Property<string>("RequestedAlternativeVoyageId")
                         .HasColumnType("varchar(10)");
 
                     b.Property<int>("RetryCount")

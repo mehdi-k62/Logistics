@@ -2,9 +2,9 @@ flowchart LR
   Booking[Booking Context]
   Voyage[Voyage / Capacity Context]
   Replan[Replanning Context]
-  Broker[(Integration Boundary)]
+  Transport[(Integration Transport Boundary)]
   Replan -->|application ports| Booking
   Replan -->|application ports| Voyage
-  Voyage -->|VoyageDisrupted| Broker
-  Broker --> Replan
-  Replan -->|BookingReplanned| Broker
+  Voyage -->|VoyageDisrupted| Transport
+  Transport --> Replan
+  Replan -->|BookingReplanned| Transport
